@@ -167,6 +167,12 @@ if [ -e "$APP_SOURCE_DIR"/git-packages.json ]; then
   mgp --https
 fi
 
+# rebuild
+  echo "-----> Installing bcrypt"
+  $METEOR_NPM install -g bcrypt
+echo "------------------------------> REBUILDING!!"
+HOME=$METEOR_DIR $METEOR npm rebuild
+
 # Related to https://github.com/meteor/meteor/issues/2796 and
 # https://github.com/meteor/meteor/issues/2606.  Some packages only build their
 # assets at runtime, and thus they are not available for bundling unless meteor
