@@ -31,7 +31,6 @@ if [ -n "${BUILDPACK_VERBOSE+1}" ]; then
   set -x
 fi
 
-
 # Get the path to dir one above this file.
 BUILDPACK_DIR=$(cd -P -- "$(dirname -- "$0")" && cd .. && pwd -P)
 # Get the directory our app is checked out in (the "BUILD_DIR"), passed by Heroku
@@ -172,6 +171,13 @@ echo "----->    and npm: `$METEOR_NPM --version`"
 # may need devDependencies (e.g. webpack) in order to build the meteor app.
 if [ -e "$APP_SOURCE_DIR"/package.json ]; then
   $METEOR_NPM install
+fi
+
+if [ -e "$APP_SOURCE_DIR"/git-packages.json ]; then
+  echo "-----> Installing mgp"
+  $METEOR_NPM install -g mgp
+  echo "-----> Installing the packages"
+  mgp --https
 fi
 
 # Related to https://github.com/meteor/meteor/issues/2796 and
