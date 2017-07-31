@@ -167,10 +167,38 @@ PATH="$METEOR_DIR/.meteor:`dirname $METEOR_NPM`:$COMPILE_DIR/bin:$PATH"
 echo "-----> Using node: `$NODE --version`"
 echo "----->    and npm: `$METEOR_NPM --version`"
 
+# TODO: run before hook scripts
+
+# Handle npm's new cert bug
+# http://blog.npmjs.org/post/78085451721/npms-self-signed-certificate-is-no-more
+if [ ! -f "$APP_SOURCE_DIR/.npmrc" ]; then
+  #status "Writing a custom .npmrc to circumvent npm bugs"
+  echo "ca=" > "$APP_SOURCE_DIR/.npmrc"
+fi
+
+if [ "$GIT_SSH_KEY" != "" ]; then
+  #status "Detected SSH key for git.  launching ssh-agent and loading key"
+  echo $GIT_SSH_KEY | base64 --decode > id_rsa
+  # launch ssh-agent, we'll use it to serve our ssh key
+  # and kill it towards the end of the buildpack's run
+  eval `ssh-agent -s`
+  # We're not supporting passphrases at this time.  We could pull that in
+  # from config as well, but then we'd have to setup expect or some other
+  # terminal automation tool to feed it into ssh-add.
+  ssh-add id_rsa
+  rm id_rsa
+  # Add github to the list of known hosts - ignore the warning or else set -e will abort the deployment
+  ssh -oStrictHostKeyChecking=no -T git@github.com || true
+fi
+
+  ##status "Installing dependencies"
+  ## Make npm output to STDOUT instead of its default STDERR
+  #npm install --userconfig $build_dir/.npmrc --production 2>&1 | indent
+
 # If we use npm on root, run npm install.  Don't use `--production` here, as we
 # may need devDependencies (e.g. webpack) in order to build the meteor app.
 if [ -e "$APP_SOURCE_DIR"/package.json ]; then
-  $METEOR_NPM install
+  $METEOR_NPM install --userconfig $APP_SOURCE_DIR/.npmrc
 fi
 
 if [ -e "$APP_SOURCE_DIR"/git-packages.json ]; then
@@ -197,7 +225,6 @@ fi
 
 echo "-----> Building Meteor app with ROOT_URL: $ROOT_URL"
 BUNDLE_DEST=`mktemp -d "$BUILDPACK_DIR/build-XXXX"`
-
 # The actual invocation of `meteor build`!
 METEOR build $BUILD_OPTIONS --server $ROOT_URL $SERVER_ONLY_FLAG --directory $BUNDLE_DEST
 
@@ -209,8 +236,15 @@ rmdir $BUNDLE_DEST
 echo "-----> Installing npm production dependencies on built slug"
 if [ -e "$COMPILE_DIR"/app/programs/server/package.json ]; then
   cd "$COMPILE_DIR"/app/programs/server
-  $METEOR_NPM install --production
+  $METEOR_NPM install --production --userconfig $APP_SOURCE_DIR/.npmrc
   cd "$APP_SOURCE_DIR"
+fi
+
+if [ "$GIT_SSH_KEY" != "" ]; then
+  # Now that npm has finished running, we shouldn't need the ssh key anymore.  Kill ssh-agent
+  eval `ssh-agent -k`
+  # Clear that sensitive key data from the environment
+  export GIT_SSH_KEY=0
 fi
 
 #
