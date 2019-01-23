@@ -206,7 +206,11 @@ if [ -e "$APP_SOURCE_DIR"/git-packages.json ]; then
   echo "-----> Installing mgp"
   $METEOR_NPM install -g mgp
   echo "-----> Installing the packages"
-  mgp
+  if [ "$GIT_SSH_KEY" != "" ]; then
+    mgp
+  else
+    mgp --https
+  fi
 fi
 
 # Related to https://github.com/meteor/meteor/issues/2796 and
